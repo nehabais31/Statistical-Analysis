@@ -1,0 +1,265 @@
+---
+title: "Assignment-6"
+author: "Neha Bais"
+date: "12/1/2020"
+output: word_document
+---
+
+
+## The data in this document consists of body temperature measurements and heart rate measurements for 65 men and 65 women.  Save the data to excel and read the data into R.  Use this data to address the following questions.  
+  
+  
+### (1) We are interested in whether the proportion of men and women with body temperatures greater than or equal to 98.6 degrees Fahrenheit are equal. Therefore, we need to dichotomize the body temperature variable. Create a new variable, called “temp_level” in which temp_level = 1 if body temperature >= 98.6 and temp_level=0 if body temperature < 98.6.   
+
+
+```{r}
+# Load the data into R
+temp_data <- read.csv('temp_hr_data.csv')
+
+# Dichotomies temp variable
+temp_data$temp_level <- ifelse(temp_data$temp >= 98.6, 1, 0)
+
+head(temp_data, 5)   # 1 = male, 2= female
+
+```
+
+### (2) Summarize the data relating to body temperature level by sex.   
+
+```{r}
+# Summarize data of body temp level by sex
+
+table(temp_data$temp_level, temp_data$sex)
+
+```  
+  
+The above results indicates that:  
+  1. 51 males have a body temp less than 98.6.  
+  2. 14 males have a body temperature greater than 98.6.  
+  3. 30 females have a body temperature less than 98.6.  
+  4. 35 females have a body temperature greater than 98.6.  
+  
+  
+### 3. Calculate the risk difference.  Formally test (at the alpha=0.05 level) whether the proportion of people with higher body temperatures (greater than or equal to 98.6) is the same across men and women, based on this effect measure.  Do females have higher body temperatures than males?  
+  
+  
+  
+1. Set up the hypotheses and select the alpha level  
+    + H0: $p1 = p2$ (prop of people with higher temp is same between male and female)  
+    + H1: $p1 \neq p2$ (Prop of people with higher temperature is not same between male and female)  
+    + $\alpha$ = 0.05  
+        
+2. Select the appropriate test statistic.  
+    $z = \frac{\hat{p1} - \hat{p2}}{\sqrt{\hat{p}(1-\hat{p}(\frac{1}{n1} + \frac{1}{n2}))}}$       
+    
+3. State the decision rule  
+  * Determine the appropriate critical value associated with a right hand tail probability of $\frac{\alpha}{2}$ = 0.025.  
+  * Decision Rule: Reject H0 if $|z| \ge 1.960$ or Reject if $p < 0.05$  
+  * Otherwise, do not reject H0  
+  
+```{r}
+qnorm(0.05/2, lower.tail = F)
+```
+  
+4. Compute the test statistic and the associated p-value  
+  
+```{r}
+
+# Sample size
+n_males   <- nrow(temp_data[temp_data$sex == 1, ])
+n_females <- nrow(temp_data[temp_data$sex == 2, ])
+
+# Count of success  
+succ_males   <- nrow(temp_data[temp_data$temp_level == 1 & temp_data$sex == 1, ])
+succ_females <- nrow(temp_data[temp_data$temp_level == 1 & temp_data$sex == 2, ])
+
+# Statistical test
+prop_test <- prop.test(c(succ_males, succ_females) , c(n_males, n_females), conf.level =0.95, correct = TRUE )
+prop_test
+
+```  
+  
+  
+5. Conclusion:  
+  * Reject the null hypothesis, since p-value (0.0002951) < 0.05.  
+  * We have significant evidence at $\alpha$ = 0.05 level that the proportion of people with higher temperature is different among males and females.  
+  
+*#Risk Difference*  
+  
+```{r}
+risk_diff <- prop_test$estimate[1] - prop_test$estimate[2]
+risk_diff
+```  
+  
+  * Effect measure(risk difference) prop(males) - prop(females) is negative, which shows that the female have a higher body temperature than male.    
+  * The negative risk diff indicates that the risk of having a higher temperature is less in Males as compared to females.  
+  
+  
+  
+### 4. Perform a logistic regression with sex as the only explanatory variable. Formally test (at the alpha=0.05 level) if the odds of having a temperature greater than or equal to 98.6 is the same between males and females. Include the odds ratio for sex and the associated 95% confidence interval based on the model in your summary and interpret this value. What is the c-statistic for this model?   
+  
+  
+1. Set up the hypotheses and select the alpha level  
+    + H0: $\beta_{1} = 0$ or $OR = 1$ (There is no association between sex and odds of having a higher temperature)    
+    + H1: $\beta_{1} \neq 0$ or $OR \neq 1$ (There is an association between sex and odds of having a higher temperature)
+    + $\alpha$ = 0.05  
+        
+2. Select the appropriate test statistic.  
+    $z = \frac{\beta_{1}}{SE_{\hat\beta_{1}}}$      
+    
+3. State the decision rule  
+  * Determine the appropriate critical value associated with a right hand tail probability of $\frac{\alpha}{2}$ = 0.025.  
+  * Decision Rule: Reject H0 if $|z| \ge 1.960$ or Reject if $p < 0.05$   
+  * Otherwise, do not reject H0  
+  
+4. Compute the test statistic  
+  
+```{r}
+m1 <- glm(temp_data$temp_level ~ temp_data$sex, family = 'binomial')
+summary(m1)
+
+```
+  
+  
+5. Conclusion:  
+  * Reject the null hypothesis since $ p(0.000216) < \alpha$  
+  * We have significant evidence at $\alpha = 0.05$ level that $\beta_{1} \neq 0$ and there is an association between sex and odds of having a higher temperature.  
+  * Here $OR \neq 1$, this indicates that the odds of having a higher temperature is not the same between male and female.  
+  
+  
+*Odds Ratio and Confidence Interval*  
+  
+```{r}
+# Odd ratio and confidence interval
+exp(cbind(OR = coef(m1), confint.default(m1)))
+
+```
+  
+  * The odds ratio is 4.25 for every single additional person.  
+  * We are 95% confident that the true odds ratio is between (1.9747, 9.147).  
+  
+  
+*c-statistic*   
+  
+```{r message=FALSE}
+library(pROC)
+
+temp_data$prob <- predict(m1, type=c("response"))
+
+roc.info <- roc(temp_data$temp_level ~ temp_data$prob, legacy.axes=T)   # c-stat = 0.672
+roc.info$auc
+
+```
+  
+    
+### 5. Perform a multiple logistic regression predicting body temperature level from sex and heart rate. Summarize briefly the output from this model. Give the odds ratio for sex and heart rate (for a 10 beat increase). What is the c-statistic of this model?  
+  
+  
+1. Set up hypothesis and alpha level.  
+  * H0: $\beta_{sex} = \beta_{heart.rate} = 0$  
+  * H1: at least one $\beta_{sex} or \beta_{heart.rate} \neq 0$  
+  
+  From the global Wald test $p = 0.00017$. We reject the null hypothesis and conclude that at least one $\beta_{sex} or \beta_{heart.rate} \neq 0$.  
+  
+    
+2. Next is to find out which variable is a significant predictor of response variable, whether it is age or heart rate.  
+Tests of the individual parameters follow the 5-step procedure for the simple logistic regression setting.   
+Summarizing the results here:  
+
+*Sex:*  
+  * H0: $\beta_{sex}=0$  or  $OR_{sex} = 1$  (No association between odds of high temp between male vs female after controlling for heart rate.)  
+  * H1: $\beta_{sex} \neq 0$ or $OR_{sex} \neq 1$ (Association between odds of having a high temperature between male vs female)  
+    
+Conclusion: 
+  * Reject the null hypothesis since $p(0.000493) < 0.05$.  
+  * We have significant evidence that there is an association between odds of having a high temperature between male vs female after controlling for heart rate. 
+  * The odds ratio for having a high temperature between male vs female is 4.0116.  
+  * We are 95% confident that the true odds ratio is between 1.836 and 8.76 after controlling for heart rate.  
+  
+  
+*Heart Rate:*  
+  * H0: $\beta_{heart.rate}=0$  or  $OR_{heart.rate} = 1$  (No association between odds of high temp and heart rate after controlling for sex.)  
+  * H1: $\beta_{heart.rate} \neq 0$ or $OR_{heart.rate} \neq 1$ (Association between odds of high temp and heart rate after controlling for sex.)  
+    
+Conclusion: 
+  * Reject the null hypothesis since $p(0.026195) < 0.05$.  
+  * We have significant evidence that there is an association between odds of high temp and heart rate after controlling for sex.  
+  * The odds ratio for having a high temperature is 1.885 for every 10 beat increase in heart rate.  
+  * We are 95% confident that the true odds ratio is between 1.0075 and 1.1266 after controlling for sex.  
+  
+  
+    
+  
+  
+
+```{r}
+
+# multiple logistic regression
+m2 <- glm(temp_data$temp_level ~ temp_data$sex + temp_data$Heart.rate, family=binomial)
+summary(m2)
+
+```  
+  
+Conclusion:  
+  * Both $\beta_{age}$ and $\beta_{heart.rate}$ have p-value < 0.05.  
+  * So, 
+
+```{r}
+# overall test
+# install.package("aod")
+
+library(aod)
+wald.test(b=coef(m2), Sigma = vcov(m2), Terms = 2:3)
+
+```  
+
+```{r}
+
+# ORs For sex
+exp(cbind(OR = coef(m2), confint.default(m2)))
+
+```  
+  
+```{r}
+  
+# ORs for heart rate (for a 10 beat increase)
+exp(coef(m2)[3] * 10)  
+  
+```
+  
+*c-statisitc of Multiple Logistic regression*  
+  
+```{r message=FALSE}  
+  
+temp_data$prob_MLR <- predict(m2, type=c("response"))
+
+roc.mlr <- roc(temp_data$temp_level ~ temp_data$prob_MLR, legacy.axes=T)   # c-stat = 0.672
+roc.mlr$auc
+
+```   
+  
+  
+### 6. Which model fit the data better? Support your response with evidence from your output.  Present the ROC curve for the model you choose.   
+  
+  
+  * Multiple logistic regression AUC = 72.9%  
+  * Simple logistic regression AUC = 67.2%  
+  * Since, in MLR both the predictors were significant and also the c-statistic has a higher value as compared to Simple logistic model,so we can say that the second model i.e., the Multiple Logistic regression model performed better in this case.  
+  
+*ROC Curve*  
+  
+```{r message=FALSE}  
+
+library(pROC)
+
+g <- roc(temp_data$temp_level ~ temp_data$prob_MLR)
+
+plot(1-g$specificities, g$sensitivities, 
+     type ="l", xlab ="1- specificity", 
+     ylab =" Sensitivity ", col="blue", lwd=2,
+     main ="ROC curve for MLR Model")
+abline (a=0, b =1)
+grid()
+
+```
+
+  
