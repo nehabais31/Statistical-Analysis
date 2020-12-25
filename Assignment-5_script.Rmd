@@ -1,0 +1,198 @@
+---
+title: "Assignment-5"
+author: "Neha Bais"
+date: "11/8/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The data in this document is from 3 groups of students (math, chemistry, and physics) on an IQ related test.Save the data to excel and read the data into R.  Use this data to address the following questions:  
+  
+  
+### 1. How many students are in each group?  Summarize the data relating to both test score and age by the student group (separately).  Use appropriate numerical and/or graphical summaries.  
+  
+  
+```{r}
+# Load the student IQ data set. 
+data <- read.csv('iq_data.csv')
+attach(data)
+
+# Check for factor of categorical variable
+is.factor(data$group)
+data$group <- as.factor(data$group)
+
+
+# number of students in each group
+table(data$group)
+
+```
+
+```{r}
+################################
+# Summarize data by test score #
+################################
+
+# Calculate mean, SD of iq score by groups
+aggregate(data$iq, by=list(data$group), summary)
+aggregate(data$iq, by=list(data$group), sd)
+
+
+#########################
+# Summarize data by age #
+#########################
+
+# Calculate mean, SD of age by groups
+aggregate(data$age, by=list(data$group), summary)
+aggregate(data$age, by=list(data$group), sd)
+
+```
+
+```{r}
+
+############################
+#  Graphical visualisation #
+############################
+
+# Boxplot data 
+
+boxplot(data$age~data$group, data=data, main="Age by Student type", xlab="group",  ylab="Age", ylim=c(0, 50),
+        col = 'light green')
+
+boxplot(data$iq~data$group, data=data, main="IQ score by Student type", xlab="group",  ylab="Age", ylim=c(0, 70),
+        col = 'light green')
+
+
+```
+
+### 2. Do the test scores vary by student group?  Perform a one way ANOVA using the aov or Anova function in R to assess.  Use a significance level of α=0.05. Summarize the results using the 5 step procedure.  If the results of the overall model are significant, perform the appropriate pairwise comparisons using Tukey’s procedure to adjust for multiple comparisons and summarize these results.    
+  
+  
+1. Set up the hypotheses and select the alpha level  
+    + H0: $\mu_{math}$ = $\mu_{physics}$ = $\mu_{chemistry}$ (All underlying population means are equal)  
+    + H1: $\mu_{i}$ \neq $\mu_{j}$ for some i and j. (Not all of the underlying population means are equal)  
+    + $\alpha$ = 0.05  
+      
+2. Select the appropriate test statistic.  
+    $F = \frac{MSB}{MSW}$   with k-1 = 2 and n-k = 45-3 = 42 degrees of freedom    
+  
+3. State the decision rule  
+  * F-distribution with 2, 42 degrees of freedom and associated with $\alpha$ = 0:05.        
+  
+```{r}
+qf (.95 , df1 =2, df2 =42)
+
+```
+  * Decision Rule: Reject H0 if $F \geq 3.219942$   
+  * Otherwise, do not reject H0  
+    
+4. Compute the test statistic  
+  
+```{r}
+# aov( data$response ~ data$group )
+m <- aov( data$iq~data$group, data = data )
+
+# pass the anova model object to the summary function .
+summary (m)
+```  
+  
+5. Conclusion:    
+  *Reject H0 since $26.57 \geq 3.219942$. Also the p-value is very small.
+  *We have significant evidence at the $\alpha$ = 0.05 that there is a difference in mean IQ scores among Physics students, Maths students and Chemistry students.  
+    
+    
+###*Tukey Pairwise comparison*###  
+  
+```{r}
+# pairwise test with TukeyHSD
+TukeyHSD(m)
+
+```
+  
+From the Tukey Pairwise comparison test, looking at the adjusted p-value for different group comparisons, we found that:  
+  * There is a significant difference in means between Math and Chemistry students. p-value = 0.0000262  
+  * There is a significant difference in means between Physics and chemistry students. p-value = 0  
+  * However, there is not a significant difference in means between Physics and Math students as their p-value is large(0.119).    
+  
+  
+> 3. Create an appropriate number of dummy variables for student group and re-run the one-way ANOVA using the lm function with the newly created dummy variables.  Set chemistry students as the reference group.  Confirm if the results are the same.  What is the interpretation of the beta estimates from the regression model?  
+  
+  
+```{r}
+# Create dummy variables
+data$Math    <- ifelse(group == 'Math student', 1, 0)
+data$Physics <- ifelse(group == 'Physics student', 1, 0)
+
+# Create the model
+lm.model <- lm(data$iq ~ data$Math + data$Physics, data = data)
+
+summary(lm.model)
+
+```  
+  
+From the summary table created from lm model:    
+  * From the p-value(8.93e-06 ***), we can see that there is a significant difference in sample means between Math student and Chemistry student group(reference group).  
+  * There is a significant difference in sample means between Physics student and Chemistry student, since the p-value calculated is very small(1.13e-08 ***).  
+  * These results are same as we got from our pairwise comparison using Tukey's adjustment. The difference in group means are also the same as pairwise comparison using Tukey's adjustment.  
+  
+Interpretation of $\beta$ estimates:   
+  * $\beta_0$: The sample mean in the reference group which in our case the Chemistry student group is 46.267.  
+  * $\beta_{math}$: The mean difference between Math student and Chemistry students' IQ score is -8.667. The negative sign indicates that the mean of Chemistry students IQ score is greater than Maths student. This can be seen from the results of Ques-1 where Chemistry student mean score = 46.26667 and Maths student mean score = 37.6.  
+  * $\beta_{physics}$: The mean difference between Physics student and Chemistry students' IQ score is -12.133. The negative sign indicates that the mean of Chemistry students IQ score is greater than Physics student. This can be seen from the results of Ques-1 where Chemistry student mean score = 46.26667 and Physics student mean score = 34.13333.  
+  
+  
+  
+> 4. Re-do the one-way ANOVA adjusting for age (ANCOVA).  Focus on the output relating to the comparisons of test score by student type.  Explain how this analysis differs from the analysis in step 2 above (not the results but how does this analysis differ in terms of the questions it answers as opposed to the one above).  Did you obtain different results?  Summarize briefly (no need to go through the 5 –step procedure here).   Present the least square means and interpret these.      
+  
+  
+```{r}
+#install.packages ('car')
+#install.packages('emmeans')
+
+library (car)
+library(emmeans)
+
+# Re-run Anova adjusting for Age
+Anova(lm(data$iq ~ data$group + data$age), type=3)
+
+```    
+  
+  
+  * As we saw from the one way ANOVA model, the F-statistic and p-value for the student group was significant.  
+  * However, after adjusting for age using ANCOVA model, the p-value(0.574969) for student group is no longer significant. And the p-value(0.014763 *) for age is significant.  
+  * So, we can say that age is a co-founding variable in our case. 
+  * It means that all of the differences in student group is related to age and not related to the group differences in their student group.  
+    
+  
+##*Least square Means*##  
+  
+```{r}
+
+my.model <- lm( data$iq ~ data$group + data$age , data = data )
+emm_options(contrasts = c('contr . treatment',  'contr . poly'))
+
+# P value adjustment: tukey method
+emmeans(my.model, specs = "group") # , contr = "pairwise",  adjust="tukey")
+
+```  
+  
+  * Least square means(adjusted for age) were 38.6, 40.5, 39.0 for Chemistry student, Math student, Physics student respectively.  
+  * This indicates that the mean value for Chemistry student group that is adjusted for age is 38.6.  
+  * This indicates that the mean value for Math student group that is adjusted for age is 40.5.  
+  * This indicates that the mean value for Physics student group that is adjusted for age is 39.0.  
+  
+  
+##*Overall Conclusion*  
+  * We did one-way ANOVA first(without adjustment for age), and the global F-test showed that the mean test scores differed by student group (F = 26.57 on 2 and 42 degrees of freedom and p-value = 3.5e-08 ***).  
+  * After adjusting for multiple comparisons using Tukey's method, all pairwise comparisons except for Physics and Math students group were significant at $\alpha$ = 0.05 level.  
+  * However, after adjusting for age using ANCOVA model, the differences seen in one-way ANOVA setting were attenuated and the F-test for the student group was no longer significant (F= 0.5610 on 2 and 41 degrees of freedom and p-value = 0.574969).  
+  * Then, the least square means after adjusting for age were 38.6, 40.5, 39.0 for Chemistry student, Math student, Physics student respectively.  
+  * So, we can say that the differences that we saw in the on-way ANOVA model were due to age differences among student groups as opposed to true differences in test scores only to student groups.  
+  
+  
+
+
+
+
