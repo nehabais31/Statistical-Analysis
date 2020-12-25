@@ -1,0 +1,358 @@
+---
+title: "Assign-4"
+author: "Neha Bais"
+date: "10/24/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+>
+The data on the next two pages is from a Canadian 1970 census which collected information about specific occupations.  Data collected was used to develop a regression model to predict prestige for all occupations. Use R to calculate the quantities and generate the visual summaries requested below.  
+
+```{r}
+census.data <- read.csv('census_data.csv')
+census.data <- census.data[,c(-1)]
+head(census.data)
+```
+
+###### 1.) To get a sense of the data, generate a scatterplot to examine the association between prestige score and years of education.  Briefly describe the form, direction, and strength of the association between the variables.  Calculate the correlation coefficient.  
+
+```{r}
+attach(census.data)
+
+#Scatter plot
+plot(Education.Level, Prestige.Score, pch=16, col='blue',
+     xlab = 'Years of Education',
+     ylab = 'Prestige Score',
+     main = 'Years of Education & Prestige Score')
+```
+  
+>1. ***Form***: The points are following a linear pattern.  
+2. ***Direction***: Positively associated, as the increase in years of education leads to higher prestige score.  
+3. ***Strength***: Strong positive association between Years of education and Prestige score.  
+  
+
+```{r}
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor) 
+{
+  usr <- par("usr"); on.exit(par(usr)) 
+  par(usr = c(0, 1, 0, 1)) 
+  r <- abs(cor(x, y)) 
+  txt <- format(c(r, 0.123456789), digits=digits)[1] 
+  txt <- paste(prefix, txt, sep="") 
+  
+  if(missing(cex.cor)) 
+    cex <- 0.8/strwidth(txt) 
+  
+  test <- cor.test(x,y) 
+  # borrowed from printCoefmat
+  Signif <- symnum(test$p.value, corr = FALSE, na = FALSE, 
+                   cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                   symbols = c("***", "**", "*", ".", " ")) 
+  
+  text(0.5, 0.5, txt, cex = cex * r) 
+  text(.8, .8, Signif, cex=cex, col=2) 
+}
+
+
+pairs(census.data, upper.panel = panel.cor)
+```
+  
+> + There is a strong correlation between education level and prestige score.  
+  + A strong correlation can be seen between income and prestige score.  
+  + A moderately strong correlation is there between education level and income.  
+    
+  
+```{r}
+print(cor(Education.Level, Prestige.Score))
+```
+  
+###### 2. Perform a simple linear regression.  Generate a residual plot.  Assess whether the model assumptions are met.  Are there any outliers or influence points?  If so, identify them by ID and comment on the effect of each on the regression.  
+
+
+```{r Simple Linear Regression, message=FALSE}
+# SLR between score and education level
+slr.m <- lm(Prestige.Score~Education.Level, data = census.data)
+
+# Residuals and plotting them
+#resid(slr.m)
+
+plot(Education.Level, resid(slr.m), axes=TRUE, frame.plot=TRUE, 
+     xlab='Years of Education', ylab='residue', main = 'Residual')
+abline(h=0, lty=3, col='red')
+
+```
+  
+***Model Assumptions***
+
+```{r}
+par(mfrow=c(2,2))
+
+plot(Education.Level, Prestige.Score, xlab= "Years of education",
+     main = 'Education level vs Prestige score')
+abline(slr.m, col = 'red', lty =3)
+
+plot(Education.Level, resid(slr.m), axes=TRUE, frame.plot=TRUE, xlab='Years of Education', ylab='Residue',
+     main = 'Residual Plot')
+abline(h=0, lty=3, col='red')
+
+plot(fitted(slr.m), resid(slr.m), axes=TRUE, frame.plot=TRUE, xlab='Fitted values', ylab='Residue',
+     main = 'Fitted values vs Residual plot')
+
+hist(resid(slr.m), main = 'Histogram of Residuals', xlab = 'Residuals')
+
+par(mfrow=c(1,1))
+```
+   
+>  All of the model assumptions are met.  
+    + ***Linearity***: Residual plot shows that there is a strong positive linear relationship between the variables.  
+    + ***Independent***: As in above model there is a single independent variable (Education level) which predicts the Prestige score, so independence assumption is also satisfied.  
+    + ***Covariance***: From the residual plot, we can see that the variance is almost constant around the regression line.  
+    + ***Normality***: The histogram tells us that the resiudals are pretty much normally distributed, centered around 0.66.  
+  
+    
+    
+
+
+***Outlier Detection***  
+
+```{r}
+# IQR Outlier detection.
+outlier_iqr <- function(x){
+  iqr <- IQR(x,na.rm = T,type = 7)
+  q <- quantile(x)
+  upper_bound = q[4]+(iqr*1.5)
+  lower_bound = q[2]-(iqr*1.5)
+  outliers <- which ((x > upper_bound) | (x < lower_bound))
+  return(outliers)
+}
+
+# Checking outliers for Education level and Prestige score
+print(outlier_iqr(Education.Level))
+print(outlier_iqr(Prestige.Score))
+```
+>No Outliers present.  
+  
+  
+***Check for Influential points*** 
+
+```{r}
+# Influence points
+cooks.dist <- cooks.distance(slr.m)
+which(cooks.dist > (4/(nrow(census.data)-2-1))) # 24 53 67 
+```
+
+***Checking for the effect of each individual influence points on regression.***  
+  
+
+```{r}
+# Checking the effect of all Influence points
+influence.points <- c(24, 53, 67)
+
+for (i in influence.points) {
+  Education.Level2 <- census.data$Education.Level[-i]
+  Prestige.Score2 <- census.data$Prestige.Score[-i]
+  
+  census.data2 <- data.frame(Prestige.Score2, Education.Level2)
+  cor(Prestige.Score2, Education.Level2)
+  
+  lm.2 <- lm(Prestige.Score2 ~ Education.Level2, data = census.data2)
+  model.summary <- summary(lm.2)
+  print(paste('Influence Point:', i, 
+              '  R-squared: ',  round(model.summary$r.squared,4),
+              '  beta1: ', model.summary$coefficients[2,1]),)
+}
+
+```
+  
+```{r}
+summary(slr.m)
+```
+
+>1. Removing the influence point changes the regression slightly.  
+2. R-squared values before and after the removal of influence points are virtually the same.  
+3. Also, the estimate of beta1 is pretty much similar with or without the influence points.  
+4. So, we can say that these points are not very influential.  
+
+###### 3. Calculate the least squares regression equation that predicts prestige from education, income and percentage of women.  Formally test (using the 5-step procedure) whether the set of these predictors are associated with prestige at the α = 0.05 level.
+
+### Hypothesis Test  
+
+> 1. Set up the hypothesis and select the alpha level
+        + H0 : beta.education = beta.income, beta.pct_women = 0 (Education level, Income and Percentage of women are not significant predictors of Prestige score.)
+        + H1 : beta.education and/or beta.income and/or beta.pct_women ≠ 0 (at least one of the slope coefficients is different than 0; beta.education and/or beta.income and/or beta.pct_women are significant predictors/is a significant predictor of prestige score.)
+        + alpha = 0.05   
+        
+> 2. Select the appropriate test statistic 
+
+  $F = (MS Reg) / (MS Res)$    
+  with df = 3 and n-3-1 =  102-4 = 98 degree of freedom
+
+> 3. State the decision rule  
+     F-distribution with 3 and 98 degrees of freedom and associated with alpha = 0.05
+       
+```{r}
+qf(0.95, df1 = 3, df2 = nrow(census.data)-3-1)
+
+```
+          
+>       
+        + F.critical(2, 98, 0.05) = 2.697423  
+        + *Decision Rule*: Reject H0 if F >=  2.697423 or p-value < 0.05  
+        + Otherwise, do not reject H0    
+  
+> 4. Compute the test statistic and the associated p-value  
+
+```{r}
+mlr.model <- lm(Prestige.Score ~ Education.Level+Income+women.workforce, data = census.data)
+
+summary(mlr.model)
+
+```
+  
+> + From the summary table, F value = 129.2 and p-value < 2.2e-16  
+
+
+> 5. ***Conclusion***: 
+        + Reject H0 since f-statistic > 2.697423. Also, p-value < 0.05
+        + We have significant evidence at alpha = 0.05 level that beta.education and/or beta.income and/or beta.pct_women ≠ 0.
+        + There is evidence of significant linear association between Prestige Score and education and/or income and/or percentage of women.  
+        
+        
+###### 4. If the overall model was significant, summarize the information about the contribution of each variable separately at the same significance level as used for the overall model (no need to do a formal 5-step procedure for each one, just comment on the results of the tests).  Provide interpretations for any estimates that are significant.   Calculate 95% confidence intervals for any estimates that are significant.  
+  
+  
+```{r}
+# Display t values for each predictors
+summary(mlr.model)
+
+
+# Critical t-value
+t.critical <- qt(1-(0.05/2), df = nrow(census.data)-3-1)
+print(paste('t-critical: ', round(t.critical,4)))
+
+```
+  
+```{r}
+# Confidence Interval for education
+lower.education.confit <-  round(4.1866373 - (t.critical * 0.3887013) , 4)
+upper.education.confit <-  round(4.1866373 + (t.critical * 0.3887013) , 4)
+print(paste('CI for education: ', lower.education.confit, '~' ,upper.education.confit ))
+
+# Confidence Interval for Income
+lower.income.confit <-  round(0.0013136 - (t.critical * 0.0002778) , 4)
+upper.income.confit <-  round(0.0013136 + (t.critical * 0.0002778) , 4)
+print(paste('CI for Income: ', lower.income.confit, '~' ,upper.income.confit ))
+
+```
+
+  
+> From the summary table we can see the t-statistic and p-value for each individual independent variables.    
+***Education Level***:  
+              + t-stats (10.771) > t.critical (1.9845) and p-value (2e-16) < alpha(0.05).  
+              + We have significant evidence at alpha= 0.05 level that education level is a significant predictor for prestige score after adjusting for Income and percentage of women workforce in the occupation.   
+              + For every additional year of education, the presitge score increases by about 4.187 after controlling for income and women workforce percentage.    
+              + We are 95% confident that the true value of beta.education.level is between (3.4153 ~ 4.958), after controlling for income and percentage of women workforce. For every additional year of education, we are 95% confident that the prestige score generally between 3.4153 and 4.958.
+
+>                
+***Income***:   
+              + t-stats (4.729) > t.critical (1.9845) and p-value (7.58e-06) < alpha(0.05).  
+              + We have significant evidence at alpha= 0.05 level that income is a significant predictor for prestige score after adjusting for years of education and percentage of women workforce in the occupation.  
+              + For every additional dollar in income, the prestige score increases by about 0.0013136 after controlling for education level and women workforce percentage.  
+              + We are 95% confident that the true value of beta.income is between (8e-04 ~ 0.0019), after controlling for education level and percentage of women workforce.  
+              
+>  
+***Women workforce percentage***:   
+              + abs(t-stats) (0.293) < t.critical (1.9845) and p-value (0.7702 ) > alpha(0.05).  
+              + We do not have significant evidence at alpha= 0.05 level that beta.women_workforce ≠0 after controlling for Education level and income.  
+              + We can say that percentage of women workforce is not a significant predictor for prestige score after adjusting for years of education and Income level in the occupation.  
+             
+  
+###### 5. Generate a residual plot showing the fitted values from the regression against the residuals.  Is the fit of the model reasonable?  Are there any outliers or influence points?  
+  
+```{r}  
+plot(fitted(mlr.model), resid(mlr.model),
+     xlab = 'Fitted model', ylab = 'Residuals',
+     main = 'Fitted values vs Residuals')  
+abline(h=0, lty = 3, col = 'red')
+```        
+  
+> From the summary table, we get R-square as 0.7982, which describes the variability in prestige score explained by education level, income and women workforce percentage.  
+This R-square value is pretty much good and shows that the fit for our model is reasonable.
+
+  
+```{r}
+par(mfrow=c(1,2))
+
+plot(fitted(mlr.model), resid(mlr.model), axes=TRUE, frame.plot=TRUE, xlab='fitted values', ylab='residue')
+abline(h=0, col = 'red', lty=3)
+
+hist(resid(mlr.model), xlab = 'Residuals', main = 'Histogram of Residuals')
+
+par(mfrow=c(1,1))
+```
+
+> Looking at the above figure, we can say that the fit of the model is reasonable as the model assumptions are met.  
+  + A linear relationship can be seen and the variance is almost constant.  
+  + The histogram shows that the residuals are normally distributed.  
+  
+
+   
+***Outlier Detection***  
+
+```{r}
+# IQR Outlier detection.
+outlier_iqr <- function(x){
+  iqr <- IQR(x,na.rm = T,type = 7)
+  q <- quantile(x)
+  upper_bound = q[4]+(iqr*1.5)
+  lower_bound = q[2]-(iqr*1.5)
+  outliers <- which ((x > upper_bound) | (x < lower_bound))
+  return(outliers)
+}
+
+# Checking outliers for Education level and Prestige score
+print(outlier_iqr(Education.Level))
+print(outlier_iqr(Income))
+print(outlier_iqr(women.workforce))
+print(outlier_iqr(Prestige.Score))
+``` 
+> Only the Income variable has 5 outliers.  
+  
+  
+***Check for Influential points*** 
+
+```{r}
+# Influence points
+cooks.dist <- cooks.distance(mlr.model)
+which(cooks.dist > (4/(nrow(census.data)-2-1))) # 24 53 67 
+```
+  
+
+```{r}
+# Checking the effect of all Influence points
+influence.points <- c(2, 20, 24, 27, 29, 53, 54, 67, 82)
+
+for (i in influence.points) {
+  mlrdata.influence  <- census.data[-i,]
+  
+  mlr.2 <- lm(Prestige.Score ~ Education.Level+Income+women.workforce, data = mlrdata.influence)
+  model.summary <- summary(mlr.2)
+  print(paste('Influence Point:', i, 
+              '  R-squared: ',  round(model.summary$r.squared,4),
+              '  beta1: ', model.summary$coefficients[2,1]),)
+}  
+  
+# With Influence points ( R-squared and beta1)
+summary(mlr.model)$coefficients
+
+summary(mlr.model)$r.squared
+
+```
+  
+> After checking for the effect of each of the influential point, it is clear that the Rsquare and beta1 values are not varying at a larger extent.   
+There is not a much impact of these influence points on our regression model.
+
